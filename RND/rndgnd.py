@@ -55,7 +55,8 @@ def imgdetection():
 		
 	import cv2
 	import numpy as np
-
+        x=0
+	y=0
 	img_rgb = cv2.imread('file name1.png')
 	template = cv2.imread('spotify.png')
 	w, h = template.shape[:-1]
@@ -65,6 +66,10 @@ def imgdetection():
 	loc = np.where(res >= threshold)
 	for pt in zip(*loc[::-1]):  # Switch collumns and rows
 	    cv2.rectangle(img_rgb, pt, (pt[0] + w, pt[1] + h), (0, 0, 255), 2)
+	    x=pt[0] + w
+	    y=pt[1] + h
+	movemouse(x,y)
+	
 
 	cv2.imwrite('result.png', img_rgb)
 
