@@ -3,7 +3,7 @@ import pyautogui as py
 import csv
 import time
 
-count=4
+count=10
 
 mouse_co=[['X','Y','TIME']]
 
@@ -11,7 +11,7 @@ x=[]
 y=[]
 ztime=[]
 c=0
-for i in range(2000):
+for i in range(10000):
 	a=time.time()
 	time.sleep(0.001)
 	temp=[]
