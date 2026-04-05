@@ -1,0 +1,4 @@
+skills:
+  - name: lore
+    source: ~/.claude/skills/lore/SKILL.md
+    notes: using as-is for project memory

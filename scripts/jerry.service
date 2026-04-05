@@ -1,0 +1,30 @@
+# Jerry — systemd service for Linux / Raspberry Pi
+# Install:
+#   1. Edit the paths and user below to match your system
+#   2. sudo cp scripts/jerry.service /etc/systemd/system/jerry.service
+#   3. sudo systemctl daemon-reload
+#   4. sudo systemctl enable jerry
+#   5. sudo systemctl start jerry
+#
+# Logs: journalctl -u jerry -f
+
+[Unit]
+Description=Jerry AI Assistant Daemon
+After=network.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/jerry
+ExecStart=/usr/bin/node dist/index.js
+Restart=always
+RestartSec=10
+Environment=NODE_ENV=production
+EnvironmentFile=/home/pi/jerry/.env
+
+# Logging
+StandardOutput=append:/home/pi/jerry/logs/jerry.log
+StandardError=append:/home/pi/jerry/logs/jerry.error.log
+
+[Install]
+WantedBy=multi-user.target
