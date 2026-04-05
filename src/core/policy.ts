@@ -62,9 +62,18 @@ const READ_TOOLS = new Set([
   "discord_create_channel",
   "discord_delete_channel",
   "discord_send",
+  "discord_move_channel",
   "kb_read",
   "kb_update",
   "kb_append",
+  "crew_kb_read",
+  "crew_kb_update",
+  "crew_kb_list",
+  "queue_add",
+  "queue_done",
+  "queue_fail",
+  "queue_list",
+  "queue_next",
 ]);
 
 const WRITE_TOOLS = new Set([

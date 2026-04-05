@@ -130,12 +130,12 @@ export function getCrewMentions(): string {
 
 // ── Soul/Identity Loader ───────────────────────────────────────────────────
 
-type CrewPersona = {
+export type CrewPersona = {
   prompt: string;
   allowedTools: string[];
 };
 
-function loadCrewPersona(name: string): CrewPersona {
+export function loadCrewPersona(name: string): CrewPersona {
   const crewDir = resolve(import.meta.dirname, `../../crew/${name}`);
   let prompt = "";
   let identityContent = "";
@@ -196,6 +196,9 @@ export async function startDiscord(): Promise<void> {
 
   // Jerry message handler
   jerryClient.on(Events.MessageCreate, async (message) => {
+    // Never respond to your own messages
+    if (message.author.id === jerryClient?.user?.id) return;
+
     const isFromCrewBot = message.author.bot && isCrewBot(message.author.id);
     const isFromOwner = env.OWNER_DISCORD_ID && message.author.id === env.OWNER_DISCORD_ID;
     const isFromRandomBot = message.author.bot && !isFromCrewBot;
@@ -222,11 +225,12 @@ export async function startDiscord(): Promise<void> {
     // Jerry responds to:
     // 1. DMs
     // 2. His private channel (#jerry)
-    // 3. Any private 1-on-1 channel (#jerry-*)
+    // 3. Any crew channel (#ace, #scott, #sage, #atlas, #nix)
     // 4. @mention anywhere else
     const isDM = !message.guild;
     const channelName = message.channel instanceof TextChannel ? message.channel.name : "";
-    const isPrivateChannel = channelName === "jerry" || channelName.startsWith("jerry-");
+    const crewNames = new Set(["ace", "scott", "sage", "atlas", "nix"]);
+    const isPrivateChannel = channelName === "jerry" || crewNames.has(channelName);
     const isMentioned = jerryClient?.user && message.mentions.has(jerryClient.user.id);
 
     if (!isDM && !isPrivateChannel && !isMentioned) return;
@@ -329,7 +333,7 @@ async function startCrewBot(name: string, token: string): Promise<void> {
 
     // Respond when @mentioned OR in private 1-on-1 channel (jerry-{name})
     const channelName = message.channel instanceof TextChannel ? message.channel.name : "";
-    const isPrivateChannel = channelName === `jerry-${name}`;
+    const isPrivateChannel = channelName === name;
     const isMentioned = client.user && message.mentions.has(client.user.id);
     if (!isPrivateChannel && !isMentioned) return;
 
@@ -419,6 +423,32 @@ export async function sendToChannel(channelId: string, text: string): Promise<vo
     for (const chunk of chunks) {
       await channel.send(chunk);
     }
+  }
+}
+
+/** Send a message to a channel by name, as a specific bot (crew member or Jerry) */
+export async function sendAsBot(botName: string, channelName: string, text: string): Promise<void> {
+  // Pick the right client
+  const client = botName.toLowerCase() === "jerry"
+    ? jerryClient
+    : crew.get(botName.toLowerCase())?.client ?? null;
+
+  if (!client) {
+    log.warn({ botName }, "Cannot send — bot not online");
+    return;
+  }
+
+  const guild = client.guilds.cache.first();
+  if (!guild) return;
+
+  const channel = guild.channels.cache.find(
+    (c) => c instanceof TextChannel && c.name === channelName.toLowerCase().replace(/\s+/g, "-")
+  );
+  if (!(channel instanceof TextChannel)) return;
+
+  const chunks = chunkMessage(text, 2000);
+  for (const chunk of chunks) {
+    await channel.send(chunk);
   }
 }
 

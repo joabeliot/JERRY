@@ -14,6 +14,8 @@ import { IMESSAGE_AVAILABLE } from "./imessage.js";
 import * as discord from "./discord.js";
 import { readKB, appendKB, listKB } from "../core/knowledgebase.js";
 import { smartUpdateKB } from "../core/knowledgebase.js";
+import { enqueue, complete, fail, getQueue, dequeue } from "../core/queue.js";
+import * as crew from "./crew.js";
 
 export type ToolDef = {
   name: string;
@@ -271,6 +273,26 @@ export const TOOL_DEFS: ToolDef[] = [
       return discord.sendToChannel(channel, message);
     },
   },
+  {
+    name: "discord_move_channel",
+    description: "Move a Discord channel to a different category (channel and category required)",
+    execute: (args) => {
+      const channel = extractQuotedArg(args, "channel") ?? extractQuotedArg(args, "name");
+      const category = extractQuotedArg(args, "category");
+      if (!channel || !category) return Promise.resolve("Missing channel or category");
+      return discord.moveChannel(channel, category);
+    },
+  },
+  {
+    name: "discord_rename_channel",
+    description: "Rename a Discord channel (channel and newName required). Preserves message history.",
+    execute: (args) => {
+      const channel = extractQuotedArg(args, "channel") ?? extractQuotedArg(args, "name");
+      const newName = extractQuotedArg(args, "newName");
+      if (!channel || !newName) return Promise.resolve("Missing channel or newName");
+      return discord.renameChannel(channel, newName);
+    },
+  },
   // Knowledge Base
   {
     name: "kb_read",
@@ -300,6 +322,98 @@ export const TOOL_DEFS: ToolDef[] = [
       const content = extractQuotedArg(args, "content") ?? "";
       if (!file || !content) return Promise.resolve("Missing file or content");
       return Promise.resolve(appendKB(file, content) ? `✅ Appended to ${file}.md` : `Unknown file: ${file}`);
+    },
+  },
+  // Crew Knowledge Base
+  {
+    name: "crew_kb_read",
+    description: "Read a crew member's KB file (crew and file required). Crew: ace, scott, sage, atlas, nix. File: identity, soul, memory.",
+    execute: (args) => {
+      const crewName = extractQuotedArg(args, "crew") ?? "";
+      const file = extractQuotedArg(args, "file") ?? "identity";
+      if (!crewName) return Promise.resolve(`Missing crew name. Available: ${crew.listCrew().join(", ")}`);
+      return Promise.resolve(crew.readCrewKB(crewName, file));
+    },
+  },
+  {
+    name: "crew_kb_update",
+    description: "Update a crew member's KB file with new info (crew, file, content required). Uses smart merge to incorporate new content.",
+    execute: async (args) => {
+      const crewName = extractQuotedArg(args, "crew") ?? "";
+      const file = extractQuotedArg(args, "file") ?? "";
+      const content = extractQuotedArg(args, "content") ?? "";
+      if (!crewName || !file || !content) {
+        return `Missing crew, file, or content. Usage: [TOOL:crew_kb_update crew="ace" file="memory" content="new info"]`;
+      }
+      return crew.smartUpdateCrewKB(crewName, file, content);
+    },
+  },
+  {
+    name: "crew_kb_list",
+    description: "List available crew members and their KB file types",
+    execute: () => {
+      return Promise.resolve(`Crew: ${crew.listCrew().join(", ")}\nFiles: ${crew.listCrewFiles().join(", ")}`);
+    },
+  },
+  // Queue
+  {
+    name: "queue_add",
+    description: "Add a task to the work queue (task, assignee required). Assignee: ace, scott, sage, atlas, nix, or jerry. Priority: high, medium, low.",
+    execute: (args) => {
+      const task = extractQuotedArg(args, "task") ?? "";
+      const assignee = extractQuotedArg(args, "assignee") ?? "";
+      const priority = (extractQuotedArg(args, "priority") ?? "medium") as "high" | "medium" | "low";
+      const channel = extractQuotedArg(args, "channel") ?? "";
+      const context = extractQuotedArg(args, "context") ?? "";
+      if (!task || !assignee) return Promise.resolve("Missing task or assignee");
+      const item = enqueue({ task, assignee, createdBy: "jerry", channel, priority, context });
+      return Promise.resolve(`✅ Queued: "${item.task}" → ${item.assignee} (id: ${item.id})`);
+    },
+  },
+  {
+    name: "queue_done",
+    description: "Mark a queue item as done (id required, result optional)",
+    execute: (args) => {
+      const id = extractQuotedArg(args, "id") ?? args.trim();
+      const result = extractQuotedArg(args, "result") ?? "";
+      if (!id) return Promise.resolve("Missing queue item id");
+      const item = complete(id, result || undefined);
+      return Promise.resolve(item ? `✅ Done: "${item.task}"` : `Queue item not found: ${id}`);
+    },
+  },
+  {
+    name: "queue_fail",
+    description: "Mark a queue item as failed (id required, reason optional)",
+    execute: (args) => {
+      const id = extractQuotedArg(args, "id") ?? args.trim();
+      const reason = extractQuotedArg(args, "reason") ?? "";
+      if (!id) return Promise.resolve("Missing queue item id");
+      const item = fail(id, reason || undefined);
+      return Promise.resolve(item ? `❌ Failed: "${item.task}" — ${reason || "no reason"}` : `Queue item not found: ${id}`);
+    },
+  },
+  {
+    name: "queue_list",
+    description: "List work queue items. Optional filters: assignee, status (pending, in_progress, done, failed)",
+    execute: (args) => {
+      const assignee = extractQuotedArg(args, "assignee");
+      const status = extractQuotedArg(args, "status") as any;
+      const items = getQueue({ assignee: assignee || undefined, status: status || undefined });
+      if (items.length === 0) return Promise.resolve("Queue is empty.");
+      return Promise.resolve(items.map((i) =>
+        `• [${i.status.toUpperCase()}] ${i.task} → ${i.assignee} (id: ${i.id})`
+      ).join("\n"));
+    },
+  },
+  {
+    name: "queue_next",
+    description: "Get the next pending task for an assignee (assignee required). Marks it as in_progress.",
+    execute: (args) => {
+      const assignee = extractQuotedArg(args, "assignee") ?? args.trim();
+      if (!assignee) return Promise.resolve("Missing assignee");
+      const item = dequeue(assignee);
+      if (!item) return Promise.resolve(`No pending tasks for ${assignee}.`);
+      return Promise.resolve(`📋 Next task: "${item.task}" (id: ${item.id})\nContext: ${item.context || "none"}`);
     },
   },
 ];

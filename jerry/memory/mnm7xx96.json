@@ -1,0 +1,8 @@
+{
+  "id": "mnm7xx96",
+  "content": "**Reporting rule:** All crew task results should be reported back to the channel where the task originated. Always include the `channel` field when using queue_add so the poller knows where to send completion messages.",
+  "category": "team",
+  "tier": "durable",
+  "createdAt": "2026-04-05T20:33:19.770Z",
+  "updatedAt": "2026-04-05T20:33:19.770Z"
+}

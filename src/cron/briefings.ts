@@ -2,12 +2,14 @@ import cron from "node-cron";
 import { readFileSync } from "fs";
 import { resolve } from "path";
 import { log } from "../core/logger.js";
-import { askJerry } from "../core/claude.js";
+import { ask, askJerry } from "../core/claude.js";
 import { runTool } from "../tools/index.js";
 import { generateBriefing } from "../core/briefing.js";
 import { tick as schedulerTick } from "../core/scheduler.js";
 import { cleanExpiredMemories } from "../core/memory.js";
-import { sendToOwner } from "../channels/discord.js";
+import { sendToOwner, getCrewClient, loadCrewPersona, sendAsBot } from "../channels/discord.js";
+import { sendToChannel as sendToChannelByName } from "../tools/discord.js";
+import { getPendingItems, getCompletedItems, dequeue, complete, fail, cleanupQueue, recoverStuckItems } from "../core/queue.js";
 
 const HEARTBEAT_PATH = resolve(import.meta.dirname, "../../jerry/heartbeat.json");
 
@@ -299,6 +301,134 @@ Tone: Hype man energy. Make him excited about dating his wife.`
   }
 }
 
+// ── Queue Poller ──────────────────────────────────────────────────────────
+// Runs every 30 seconds. Picks up pending queue items, dispatches to crew
+// agents via Claude CLI, marks them done/failed, and reports results.
+
+let queuePollerRunning = false;
+
+async function pollQueue(): Promise<void> {
+  // Prevent overlapping runs (a crew task could take >30s)
+  if (queuePollerRunning) return;
+  queuePollerRunning = true;
+
+  try {
+    // Recover tasks stuck in_progress for over 60 seconds (process restarted mid-execution)
+    recoverStuckItems(60_000);
+
+    const pending = getPendingItems();
+    if (pending.length === 0) return;
+
+    // Filter to only crew tasks (not jerry-assigned)
+    const crewTasks = pending.filter((i) => i.assignee !== "jerry");
+    if (crewTasks.length === 0) {
+      log.debug({ jerryTasks: pending.length }, "Queue poller: only jerry-assigned tasks, skipping");
+      return;
+    }
+
+    log.info({ count: crewTasks.length }, "Queue poller: dispatching crew tasks");
+
+    for (const item of crewTasks) {
+      // Check if the crew bot is online
+      const crewMember = getCrewClient(item.assignee);
+      if (!crewMember) {
+        log.warn({ assignee: item.assignee, id: item.id }, "Queue: assignee bot not online, skipping");
+        continue;
+      }
+
+      // Mark as in_progress
+      const dequeued = dequeue(item.assignee);
+      if (!dequeued) {
+        log.warn({ assignee: item.assignee, id: item.id }, "Queue: dequeue returned null, skipping");
+        continue;
+      }
+
+      // Load crew persona and dispatch
+      const persona = loadCrewPersona(item.assignee);
+
+      // Check if this task was previously attempted (recovered from in_progress)
+      // If so, tell the agent to check git for what was already done
+      const wasRetried = new Date(item.updatedAt).getTime() > new Date(item.createdAt).getTime() + 5000;
+      const retryHint = wasRetried
+        ? "\n• ⚠️ This task was previously attempted but the system restarted mid-execution. Check git status and recent commits — the work may already be done. If the changes are already in place, just verify and report the result. Don't redo completed work."
+        : "";
+      // If the task involves editing JERRY's own source, warn about self-restart
+      const isSelfEdit = (item.context ?? "").toLowerCase().includes("jerry") ||
+        (item.task ?? "").toLowerCase().includes("jerry");
+      const selfEditHint = isSelfEdit
+        ? "\n• ⚠️ IMPORTANT: This project uses tsx watch. Editing .ts files in this project will restart the process and kill your session. Make ALL your changes, then report. The system will recover and re-dispatch if interrupted — check git status first to see if your previous attempt already landed."
+        : "";
+
+      const systemPrompt = [
+        persona.prompt,
+        "",
+        "RULES:",
+        "• You are executing a task from the work queue.",
+        "• Complete the task and report your results clearly.",
+        "• Be concise. Report what you did, what changed, and any issues.",
+        `• Task ID: ${dequeued.id}`,
+        `• Assigned by: ${item.createdBy}`,
+        item.context ? `• Context: ${item.context}` : "",
+        retryHint,
+        selfEditHint,
+        `• Today is ${new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}.`,
+      ].filter(Boolean).join("\n");
+
+      const crewChannel = item.assignee;
+      const assigneeCap = item.assignee.charAt(0).toUpperCase() + item.assignee.slice(1);
+
+      try {
+        log.info({ id: item.id, assignee: item.assignee, task: item.task }, "Queue: dispatching task");
+
+        // 1. Jerry announces the assignment in the crew channel
+        await sendAsBot("jerry", crewChannel,
+          `📋 **${assigneeCap}**, picking up from the queue:\n*${item.task}*${item.context ? `\n\nContext: ${item.context}` : ""}${wasRetried ? "\n\n⚠️ This was attempted before but the system restarted. Check if work is already done." : ""}`
+        );
+
+        // 2. Dispatch the task to the crew agent
+        const result = await ask(item.task, {
+          systemPrompt,
+          allowedTools: persona.allowedTools,
+          timeoutMs: 300_000, // 5 min for crew tasks
+        });
+
+        complete(item.id, result);
+        log.info({ id: item.id, assignee: item.assignee }, "Queue: task completed");
+
+        // 3. Crew bot reports back in their channel
+        await sendAsBot(item.assignee, crewChannel,
+          `✅ Done. ${result.length > 1500 ? result.slice(0, 1500) + "…" : result}`
+        );
+
+        // 4. Jerry reports to JB in the originating channel (or #jerry)
+        const jbReport = `✅ **${assigneeCap}** finished: *${item.task}*\n\n${result.length > 1500 ? result.slice(0, 1500) + "…" : result}`;
+        if (item.channel && item.channel !== crewChannel) {
+          await sendAsBot("jerry", item.channel, jbReport);
+        }
+        await sendToOwner(jbReport);
+
+      } catch (err) {
+        const reason = (err as Error).message;
+        fail(item.id, reason);
+        log.error({ err, id: item.id, assignee: item.assignee }, "Queue: task failed");
+
+        // Crew bot reports failure in their channel
+        await sendAsBot(item.assignee, crewChannel,
+          `❌ Failed: ${reason}`
+        );
+
+        // Jerry reports failure to JB
+        const failReport = `❌ **${assigneeCap}** failed: *${item.task}*\nReason: ${reason}`;
+        await sendToOwner(failReport);
+      }
+    }
+  } catch (err) {
+    log.error({ err }, "Queue poller error");
+  } finally {
+    queuePollerRunning = false;
+  }
+}
+
 const JOB_HANDLERS: Record<string, (config: Record<string, unknown>) => Promise<void>> = {
   briefing: runBriefing,
   email_check: runEmailCheck,
@@ -335,6 +465,20 @@ export function startCronJobs(): void {
     }
   });
   log.info("Scheduler tick running every minute");
+
+  // Queue poller — every 30 seconds, pick up pending tasks and dispatch to crew
+  cron.schedule("*/30 * * * * *", () => void pollQueue());
+  log.info("Queue poller running every 30 seconds");
+
+  // Immediate queue check on startup (5s delay to let bots finish logging in)
+  setTimeout(() => {
+    log.info("Running startup queue check...");
+    void pollQueue();
+  }, 5_000);
+
+  // Queue cleanup — every hour, remove old completed/failed items
+  cron.schedule("0 * * * *", () => cleanupQueue());
+  log.info("Queue cleanup scheduled every hour");
 
   // Memory cleanup — every 6 hours
   cron.schedule("0 */6 * * *", () => cleanExpiredMemories());

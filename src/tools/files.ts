@@ -7,7 +7,7 @@ const JERRY_DOCS = "/Users/joabeliot/projects/personal/JERRY/jerry";
 // Ensure output directory exists
 if (!existsSync(JERRY_DOCS)) mkdirSync(JERRY_DOCS, { recursive: true });
 
-/** Save a document to the Jerry Documents folder on Desktop */
+/** Save a document to the Jerry knowledge base folder */
 export async function saveDocument(filename: string, content: string): Promise<string> {
   // Sanitize filename
   const clean = filename.replace(/[^a-zA-Z0-9_\-. ]/g, "").trim();

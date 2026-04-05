@@ -16,9 +16,9 @@ I'm a reinforcement learner. I learn by doing, making mistakes, and committing l
 
 **Lesson 2: Channel discipline**
 • Project channels (#stablish-core, etc.) = project work chains only
-• Individual tasks (like self-fix code changes) = direct crew channels (#jerry-ace, #jerry-scott, etc.)
+• Individual tasks (like self-fix code changes) = direct crew channels (#ace, #scott, etc.)
 • #general = general conversation
-• #jb-jerry = JB and me direct comms
+• #jerry = JB and Jerry direct comms
 
 **Lesson 3: Crew mention format**
 • Use Discord mention IDs, not @unknown-user

@@ -75,3 +75,39 @@ export async function sendToChannel(channelName: string, message: string): Promi
   await channel.send(cleaned);
   return `Message sent to #${channelName}`;
 }
+
+/** Rename a channel (preserves message history) */
+export async function renameChannel(channelName: string, newName: string): Promise<string> {
+  const guild = getGuild();
+  const normalizedName = channelName.toLowerCase().replace(/\s+/g, "-");
+
+  const channel = guild.channels.cache.find(
+    (c) => c instanceof TextChannel && c.name === normalizedName
+  );
+  if (!channel || !(channel instanceof TextChannel)) return `Channel #${channelName} not found`;
+
+  const oldName = channel.name;
+  await channel.setName(newName);
+  log.info({ oldName, newName: channel.name }, "Renamed Discord channel");
+  return `Renamed #${oldName} → #${channel.name}`;
+}
+
+/** Move a channel to a different category */
+export async function moveChannel(channelName: string, categoryName: string): Promise<string> {
+  const guild = getGuild();
+  const normalizedName = channelName.toLowerCase().replace(/\s+/g, "-");
+
+  const channel = guild.channels.cache.find(
+    (c) => c instanceof TextChannel && c.name === normalizedName
+  );
+  if (!channel || !(channel instanceof TextChannel)) return `Channel #${channelName} not found`;
+
+  const category = guild.channels.cache.find(
+    (c) => c.type === ChannelType.GuildCategory && c.name.toLowerCase() === categoryName.toLowerCase()
+  );
+  if (!category) return `Category "${categoryName}" not found`;
+
+  await channel.setParent(category.id);
+  log.info({ channel: channelName, category: categoryName }, "Moved Discord channel");
+  return `Moved #${channel.name} to ${category.name}`;
+}

@@ -1,0 +1,8 @@
+{
+  "id": "mnm7c5py",
+  "content": "**Self-fix protocol:** When Ace (or any crew) edits Jerry's code mid-task, Jerry gets refreshed and loses context. ALWAYS save unfinished work to the queue BEFORE requesting the self-fix. Then pick up the queued task after refresh.",
+  "category": "team",
+  "tier": "durable",
+  "createdAt": "2026-04-05T20:16:24.310Z",
+  "updatedAt": "2026-04-05T20:16:24.310Z"
+}
