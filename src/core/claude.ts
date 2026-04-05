@@ -4,6 +4,7 @@ import { loadPersona, buildMemoryContext } from "./memory.js";
 import { buildTaskContext } from "./tasks.js";
 import { buildHistoryContext, type ChatMessage } from "./history.js";
 import { getToolDescriptions } from "../tools/index.js";
+import { env } from "./config.js";
 
 const CLAUDE_BIN = process.env.CLAUDE_BIN ?? "claude";
 const CLAUDE_MODEL = process.env.CLAUDE_MODEL ?? "claude-opus-4-5";
@@ -48,6 +49,8 @@ export async function ask(
     // Crew agents: use real Claude Code tools with pre-approved permissions
     args.push("--allowedTools", opts.allowedTools.join(","));
     args.push("--permission-mode", opts?.permissionMode ?? "acceptEdits");
+    // Give crew agents access to JB's full filesystem
+    args.push("--add-dir", env.AGENT_ROOT_DIR);
   } else {
     // Jerry: disable ALL built-in tools so he can only use [TOOL:...] tags.
     // Prevents him from seeing Edit/Write/Bash and hallucinating permission prompts.

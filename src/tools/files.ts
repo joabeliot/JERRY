@@ -2,9 +2,7 @@ import { writeFileSync, readFileSync, existsSync, mkdirSync } from "fs";
 import { resolve, dirname } from "path";
 import { log } from "../core/logger.js";
 
-const HOME = process.env.HOME || "/tmp";
-const DESKTOP = resolve(HOME, "Desktop");
-const JERRY_DOCS = resolve(DESKTOP, "Jerry Documents");
+const JERRY_DOCS = "/Users/joabeliot/projects/personal/JERRY/jerry";
 
 // Ensure output directory exists
 if (!existsSync(JERRY_DOCS)) mkdirSync(JERRY_DOCS, { recursive: true });
@@ -19,7 +17,7 @@ export async function saveDocument(filename: string, content: string): Promise<s
   const cleanContent = content.replace(/\\n/g, "\n");
   writeFileSync(path, cleanContent);
   log.info({ path, filename: clean }, "Document saved");
-  return `Saved to ~/Desktop/Jerry Documents/${clean}`;
+  return `Saved to jerry/${clean}`;
 }
 
 /** Read a document from Jerry Documents */

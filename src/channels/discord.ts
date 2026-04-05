@@ -220,14 +220,16 @@ export async function startDiscord(): Promise<void> {
     }
 
     // Jerry responds to:
-    // 1. DMs (owner only)
-    // 2. Messages in #jerry channel
-    // 3. Messages that @mention Jerry
+    // 1. DMs
+    // 2. His private channel (#jerry)
+    // 3. Any private 1-on-1 channel (#jerry-*)
+    // 4. @mention anywhere else
     const isDM = !message.guild;
-    const isJerryChannel = message.channel instanceof TextChannel && message.channel.name === "jerry";
+    const channelName = message.channel instanceof TextChannel ? message.channel.name : "";
+    const isPrivateChannel = channelName === "jerry" || channelName.startsWith("jerry-");
     const isMentioned = jerryClient?.user && message.mentions.has(jerryClient.user.id);
 
-    if (!isDM && !isJerryChannel && !isMentioned) return;
+    if (!isDM && !isPrivateChannel && !isMentioned) return;
 
     // Strip all bot @mentions from the text
     let text = message.content;
@@ -325,8 +327,11 @@ async function startCrewBot(name: string, token: string): Promise<void> {
       }
     }
 
-    // Only respond when @mentioned
-    if (!client.user || !message.mentions.has(client.user.id)) return;
+    // Respond when @mentioned OR in private 1-on-1 channel (jerry-{name})
+    const channelName = message.channel instanceof TextChannel ? message.channel.name : "";
+    const isPrivateChannel = channelName === `jerry-${name}`;
+    const isMentioned = client.user && message.mentions.has(client.user.id);
+    if (!isPrivateChannel && !isMentioned) return;
 
     // Strip all bot @mentions from the text
     let text = message.content;

@@ -1,0 +1,94 @@
+{
+  "rules": [
+    {
+      "id": "morning_briefing",
+      "name": "Morning Briefing",
+      "cron": "0 7 * * 1-5",
+      "type": "briefing",
+      "enabled": true,
+      "config": {
+        "sections": ["emails", "calendar", "sprint", "prs", "commits", "slack", "texts", "pipeline"]
+      }
+    },
+    {
+      "id": "comms_check",
+      "name": "Hourly Comms Check",
+      "cron": "0 8-17 * * 1-5",
+      "type": "comms_check",
+      "enabled": true,
+      "config": {}
+    },
+    {
+      "id": "pipeline_review",
+      "name": "Weekly Pipeline Review",
+      "cron": "0 7 * * 1",
+      "type": "pipeline_review",
+      "enabled": true,
+      "config": {}
+    },
+    {
+      "id": "stale_email_noon",
+      "name": "Stale Email Check (Noon)",
+      "cron": "0 12 * * 1-5",
+      "type": "email_check",
+      "enabled": true,
+      "config": {}
+    },
+    {
+      "id": "stale_email_evening",
+      "name": "Stale Email Check (5pm)",
+      "cron": "0 17 * * 1-5",
+      "type": "email_check",
+      "enabled": true,
+      "config": {}
+    },
+    {
+      "id": "linear_audit",
+      "name": "Linear Sprint Audit",
+      "cron": "0 14 * * 1-5",
+      "type": "sprint_audit",
+      "enabled": true,
+      "config": {}
+    },
+    {
+      "id": "github_review",
+      "name": "GitHub PR Review",
+      "cron": "0 10 * * 1-5",
+      "type": "pr_review",
+      "enabled": true,
+      "config": {}
+    },
+    {
+      "id": "eod_summary",
+      "name": "End of Day Summary",
+      "cron": "0 18 * * 1-5",
+      "type": "eod_summary",
+      "enabled": true,
+      "config": {}
+    },
+    {
+      "id": "life_check",
+      "name": "Life Check",
+      "cron": "0 9 * * 1,4",
+      "type": "life_check",
+      "enabled": true,
+      "config": {}
+    },
+    {
+      "id": "bible_study_prep",
+      "name": "Bible Study Prep Reminder",
+      "cron": "0 9 * * 3",
+      "type": "bible_study_prep",
+      "enabled": true,
+      "config": {}
+    },
+    {
+      "id": "date_night_ideas",
+      "name": "Friday Date Night Ideas",
+      "cron": "0 9 * * 4",
+      "type": "date_night_ideas",
+      "enabled": true,
+      "config": {}
+    }
+  ]
+}

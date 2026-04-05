@@ -17,6 +17,8 @@ const schema = z.object({
   LINEAR_API_KEY: z.string().default(""),
   GITHUB_REPO: z.string().default(""),
   TZ: z.string().default("America/New_York"),
+  // Root directory for agent file access (defaults to home dir)
+  AGENT_ROOT_DIR: z.string().default("/Users/joabeliot"),
 });
 
 export const env = schema.parse(process.env);

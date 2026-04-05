@@ -12,6 +12,7 @@ const EDITABLE_FILES: Record<string, string> = {
   goals: "goals.md",
   playbook: "playbook.md",
   persona: "persona.md",
+  memory: "MEMORY.md",
 };
 
 /** Read a knowledge base file */
